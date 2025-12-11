@@ -172,21 +172,22 @@ install_binary() {
     local install_dir
     install_dir=$(dirname "$install_path")
 
-    # Check if install directory is writable
-    if [ ! -w "$install_dir" ]; then
-        log_warn "Install directory $install_dir is not writable. Using sudo."
-        if ! sudo mv "$binary_path" "$install_path"; then
+    # Check if install directory exists and is writable
+    if [ ! -d "$install_dir" ] || [ ! -w "$install_dir" ]; then
+        log_warn "Install directory $install_dir is not writable or does not exist. Using sudo."
+        if ! sudo mkdir -p "$install_dir" || ! sudo mv "$binary_path" "$install_path"; then
             log_error "Failed to install with sudo"
             exit 5
         fi
+        sudo chmod +x "$install_path"
     else
-        if ! mv "$binary_path" "$install_path"; then
+        if ! mkdir -p "$install_dir" || ! mv "$binary_path" "$install_path"; then
             log_error "Failed to install"
             exit 5
         fi
+        chmod +x "$install_path"
     fi
 
-    chmod +x "$install_path"
     log_info "Installed go-mem to $install_path"
 }
 
