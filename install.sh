@@ -38,6 +38,15 @@ check_tools() {
         log_error "Please install them and try again."
         exit 1
     fi
+
+    # Check for jq (optional, improves JSON parsing)
+    if command -v jq >/dev/null 2>&1; then
+        USE_JQ=true
+        log_info "jq found, using for JSON parsing"
+    else
+        USE_JQ=false
+        log_warn "jq not found, falling back to grep for JSON parsing"
+    fi
 }
 
 # Detect OS
@@ -90,22 +99,28 @@ get_asset_urls() {
     local arch=$3
     local version
 
-    version=$(echo "$release_json" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//')
-
-    # Find archive URL
-    local archive_pattern="go-mem_${version}_${os}_${arch}\.tar\.gz"
-    local archive_url
-    archive_url=$(echo "$release_json" | grep "$archive_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
+    if [ "$USE_JQ" = true ]; then
+        version=$(echo "$release_json" | jq -r '.tag_name' | sed 's/^v//')
+        local archive_pattern="go-mem_${version}_${os}_${arch}.tar.gz"
+        local archive_url
+        archive_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$archive_pattern\") | .browser_download_url")
+        local checksum_pattern="go-mem_${version}_checksums.txt"
+        local checksum_url
+        checksum_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$checksum_pattern\") | .browser_download_url")
+    else
+        version=$(echo "$release_json" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//')
+        local archive_pattern="go-mem_${version}_${os}_${arch}\.tar\.gz"
+        local archive_url
+        archive_url=$(echo "$release_json" | grep "$archive_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
+        local checksum_pattern="go-mem_${version}_checksums\.txt"
+        local checksum_url
+        checksum_url=$(echo "$release_json" | grep "$checksum_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
+    fi
 
     if [ -z "$archive_url" ]; then
         log_error "No matching archive found for $os/$arch"
         exit 3
     fi
-
-    # Find checksum URL
-    local checksum_pattern="go-mem_${version}_checksums\.txt"
-    local checksum_url
-    checksum_url=$(echo "$release_json" | grep "$checksum_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
 
     if [ -z "$checksum_url" ]; then
         log_error "No checksum file found"
