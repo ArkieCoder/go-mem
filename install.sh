@@ -22,7 +22,7 @@ log_error() { echo -e "${RED}ERROR:${NC} $1" >&2; }
 # Check if required tools are available
 check_tools() {
     local missing=()
-    for tool in curl tar; do
+    for tool in curl tar jq; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing+=("$tool")
         fi
@@ -37,15 +37,6 @@ check_tools() {
         log_error "Missing required tools: ${missing[*]}"
         log_error "Please install them and try again."
         exit 1
-    fi
-
-    # Check for jq (optional, improves JSON parsing)
-    if command -v jq >/dev/null 2>&1; then
-        USE_JQ=true
-        log_info "jq found, using for JSON parsing"
-    else
-        USE_JQ=false
-        log_warn "jq not found, falling back to grep for JSON parsing"
     fi
 }
 
@@ -99,23 +90,15 @@ get_asset_urls() {
     local arch=$3
     local version
 
-    if [ "$USE_JQ" = true ]; then
-        version=$(echo "$release_json" | jq -r '.tag_name' | sed 's/^v//')
-        local archive_pattern="go-mem_${version}_${os}_${arch}.tar.gz"
-        local archive_url
-        archive_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$archive_pattern\") | .browser_download_url")
-        local checksum_pattern="go-mem_${version}_checksums.txt"
-        local checksum_url
-        checksum_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$checksum_pattern\") | .browser_download_url")
-    else
-        version=$(echo "$release_json" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//')
-        local archive_pattern="go-mem_${version}_${os}_${arch}\.tar\.gz"
-        local archive_url
-        archive_url=$(echo "$release_json" | grep "$archive_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
-        local checksum_pattern="go-mem_${version}_checksums\.txt"
-        local checksum_url
-        checksum_url=$(echo "$release_json" | grep "$checksum_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
-    fi
+    version=$(echo "$release_json" | jq -r '.tag_name' | sed 's/^v//')
+
+    local archive_pattern="go-mem_${version}_${os}_${arch}.tar.gz"
+    local archive_url
+    archive_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$archive_pattern\") | .browser_download_url")
+
+    local checksum_pattern="go-mem_${version}_checksums.txt"
+    local checksum_url
+    checksum_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$checksum_pattern\") | .browser_download_url")
 
     if [ -z "$archive_url" ]; then
         log_error "No matching archive found for $os/$arch"
