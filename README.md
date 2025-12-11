@@ -20,6 +20,28 @@ It supports various game modes, timers, batch processing of multiple files, and 
 
 ## Installation
 
+### Quick Install (Recommended)
+
+For automatic download and installation of the latest version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ArkieCoder/go-mem/main/install.sh | bash
+```
+
+This installs `go-mem` to `/usr/local/bin/go-mem` (requires `sudo` for system-wide installation). The script verifies checksums and handles platform detection.
+
+**Custom Install Path:**
+```bash
+./install.sh latest /usr/local/bin/go-mem  # or any path
+```
+
+**Specific Version:**
+```bash
+./install.sh v1.0.0
+```
+
+**Requirements:** `curl`, `tar`, `jq`, `sha256sum`/`shasum`.
+
 ### From Source (Go Developers)
 
 If you have Go installed:
