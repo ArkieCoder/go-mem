@@ -100,6 +100,9 @@ get_asset_urls() {
     local checksum_url
     checksum_url=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$checksum_pattern\") | .browser_download_url")
 
+    local tarball_url
+    tarball_url=$(echo "$release_json" | jq -r '.tarball_url')
+
     if [ -z "$archive_url" ]; then
         log_error "No matching archive found for $os/$arch"
         exit 3
@@ -110,7 +113,12 @@ get_asset_urls() {
         exit 3
     fi
 
-    echo "$archive_url $checksum_url"
+    if [ -z "$tarball_url" ]; then
+        log_error "No source tarball URL found"
+        exit 3
+    fi
+
+    echo "$archive_url $checksum_url $tarball_url"
 }
 
 # Download file
@@ -191,6 +199,52 @@ install_binary() {
     log_info "Installed go-mem to $install_path"
 }
 
+# Install examples and man page
+install_extras() {
+    local tarball_url=$1
+    local temp_dir=$2
+
+    log_info "Installing examples and man page"
+
+    local source_archive="$temp_dir/source.tar.gz"
+    download_file "$tarball_url" "$source_archive"
+
+    # Extract to a subdir to avoid conflicts
+    local extract_dir="$temp_dir/source"
+    mkdir -p "$extract_dir"
+    tar -xzf "$source_archive" -C "$extract_dir" --strip-components=1
+
+    # Install examples
+    local examples_src="$extract_dir/examples"
+    local examples_dest="/usr/local/share/go-mem/examples"
+    if [ -d "$examples_src" ]; then
+        if ! sudo mkdir -p "$examples_dest" || ! sudo cp -r "$examples_src"/* "$examples_dest"/; then
+            log_warn "Failed to install examples"
+        else
+            log_info "Installed examples to $examples_dest"
+        fi
+    else
+        log_warn "Examples directory not found in source"
+    fi
+
+    # Install man page
+    local man_src="$extract_dir/go-mem.1"
+    local man_dest="/usr/local/share/man/man1/go-mem.1"
+    if [ -f "$man_src" ]; then
+        if ! sudo mkdir -p "$(dirname "$man_dest")" || ! sudo cp "$man_src" "$man_dest"; then
+            log_warn "Failed to install man page"
+        else
+            log_info "Installed man page to $man_dest"
+            # Update man database if mandb is available
+            if command -v mandb >/dev/null 2>&1; then
+                sudo mandb >/dev/null 2>&1 || log_warn "Failed to update man database"
+            fi
+        fi
+    else
+        log_warn "Man page not found in source"
+    fi
+}
+
 # Main function
 main() {
     local version=${1:-latest}
@@ -215,8 +269,8 @@ main() {
 
     local asset_urls
     asset_urls=$(get_asset_urls "$release_json" "$os" "$arch")
-    local archive_url checksum_url
-    read -r archive_url checksum_url <<< "$asset_urls"
+    local archive_url checksum_url tarball_url
+    read -r archive_url checksum_url tarball_url <<< "$asset_urls"
 
     local archive_file checksum_file
     archive_file="$TEMP_DIR/$(basename "$archive_url")"
@@ -237,7 +291,9 @@ main() {
 
     install_binary "$binary_path" "$install_path"
 
-    log_info "Installation complete! Run 'go-mem --help' to get started."
+    install_extras "$tarball_url" "$TEMP_DIR"
+
+    log_info "Installation complete! Run 'go-mem --help' or 'man go-mem' to get started."
 }
 
 main "$@"
