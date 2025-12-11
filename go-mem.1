@@ -1,0 +1,121 @@
+.TH GO-MEM 1 "December 2025" "v1.0" "Go-Mem Manual"
+.SH NAME
+go-mem \- a terminal-based memory typing game
+.SH SYNOPSIS
+.B go-mem
+[\fIOPTIONS\fR] \fIFILE\fR...
+.SH DESCRIPTION
+.B go-mem
+is a CLI tool designed to help you memorize texts by typing them out. It presents the text with characters masked, revealing them as you type correctly. It supports various game modes, timers, and batch processing of multiple files.
+
+If a directory is provided, all files within it are loaded. Multiple cards can be defined in a single file by separating them with a line containing three or more dashes (\fB---\fR).
+
+.SH OPTIONS
+.TP
+.BR \-t ", " \-\-timer "[=\fITIME\fR]"
+Set a countdown timer. 
+.br
+If \fITIME\fR is provided (e.g., \fB60\fR or \fB1:30\fR), the timer is set to that duration.
+.br
+If no value is provided (or set to \fBtrue\fR), the timer is calculated automatically based on the text length (~0.33s per character).
+.br
+Default is \fBauto\fR.
+
+.TP
+.BR \-nt ", " \-\-notimer
+Disable the timer completely.
+
+.TP
+.BR \-fl ", " \-\-first-letter
+Reveal the first letter of every word as a hint.
+
+.TP
+.BR \-nr ", " \-\-n-random "=\fIN\fR"
+Reveal \fIN\fR random letters throughout the text.
+
+.TP
+.BR \-nfw ", " \-\-n-words "=\fIN\fR"
+Reveal \fIN\fR random full words throughout the text.
+
+.TP
+.BR \-rc ", " \-\-random-cards
+Randomize the order of cards when multiple cards/files are loaded (Batch Mode).
+
+.TP
+.BR \-h ", " \-\-help
+Display the help message and exit.
+
+.SH BATCH MODE
+When multiple files are provided as arguments, or when a file contains multiple cards separated by a line with three or more dashes (\fB---\fR), \fBgo-mem\fR enters Batch Mode.
+
+In Batch Mode:
+.IP \[bu] 2
+Cards are presented sequentially (or randomly if \fB-rc\fR is used).
+.IP \[bu]
+The status line displays progress (e.g., \fBCARD 1/5\fR) and aggregate score.
+.IP \[bu]
+If a timer is enabled, the time limit applies to the \fBentire session\fR, not individual cards.
+.IP \[bu]
+If the timer runs out on any card, the entire session ends.
+.IP \[bu]
+Scores are accumulated across all cards.
+
+.SH CONTROLS
+.TP
+.B <Character Keys>
+Type the visible or hidden text.
+.TP
+.B ?
+Reveal the next character (costs points).
+.TP
+.B Ctrl+R
+Reveal the entire card (ends the game for the current card with a loss).
+.TP
+.B Ctrl+C
+Quit the application.
+
+.SH SCORING
+.TP
+.B +25 points
+Per correct character.
+.TP
+.B +250 points
+Per completed word.
+.TP
+.B +1000 points
+Per completed card.
+.TP
+.B +10 points/sec
+Time bonus for remaining time (if timer enabled).
+.TP
+.B -50 points
+Per incorrect character.
+.TP
+.B -100 points
+Per hint used.
+
+.SH EXAMPLES
+.B go-mem examples/lorem.txt
+.br
+Play with default settings (auto timer).
+
+.B go-mem -nt examples/lorem.txt
+.br
+Play with no timer.
+
+.B go-mem -t=2:00 -fl examples/bible/psalms
+.br
+Load all psalms, set a global 2-minute timer for the batch, and reveal first letters.
+
+.B go-mem -rc examples/multi-card-file.txt
+.br
+Play cards from a single file in random order.
+
+.SH FILES
+.B go-mem
+stores high scores in \fB$HOME/.go-mem-scores.json\fR.
+
+.SH AUTHOR
+Jason Reeves
+.SH LICENSE
+GPLv3
