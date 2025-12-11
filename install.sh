@@ -95,7 +95,7 @@ get_asset_urls() {
     # Find archive URL
     local archive_pattern="go-mem_${version}_${os}_${arch}\.tar\.gz"
     local archive_url
-    archive_url=$(echo "$release_json" | grep -o '"browser_download_url": "[^"]*'"'"$archive_pattern"'"' | cut -d'"' -f4)
+    archive_url=$(echo "$release_json" | grep "$archive_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
 
     if [ -z "$archive_url" ]; then
         log_error "No matching archive found for $os/$arch"
@@ -105,7 +105,7 @@ get_asset_urls() {
     # Find checksum URL
     local checksum_pattern="go-mem_${version}_checksums\.txt"
     local checksum_url
-    checksum_url=$(echo "$release_json" | grep -o '"browser_download_url": "[^"]*'"'"$checksum_pattern"'"' | cut -d'"' -f4)
+    checksum_url=$(echo "$release_json" | grep "$checksum_pattern" | grep '"browser_download_url"' | head -1 | cut -d'"' -f4)
 
     if [ -z "$checksum_url" ]; then
         log_error "No checksum file found"
