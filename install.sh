@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Constants
 REPO="ArkieCoder/go-mem"
-DEFAULT_INSTALL_PATH="/usr/bin/go-mem"
+DEFAULT_INSTALL_PATH="/usr/local/bin/go-mem"
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
