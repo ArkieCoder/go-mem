@@ -25,7 +25,7 @@ It supports various game modes, timers, batch processing of multiple files, and 
 For automatic download and installation of the latest version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ArkieCoder/go-mem/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ArkieCoder/go-mem/master/install.sh | bash
 ```
 
 This installs `go-mem` to `/usr/local/bin/go-mem` (requires `sudo` for system-wide installation). The script verifies checksums and handles platform detection.
