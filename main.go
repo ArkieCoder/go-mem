@@ -30,9 +30,11 @@ var (
 type LocalState struct {
 	Session       *game.Session
 	QuitNextCycle bool
+	Quitting      bool
 }
 
 type TickMsg time.Time
+type QuitMsg struct{}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
@@ -83,11 +85,17 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	currentGame := s.Session.CurrentGame
 
 	switch msg := msg.(type) {
+	case QuitMsg:
+		return s, tea.Quit
 	case TickMsg:
+		if s.Quitting {
+			return s, func() tea.Msg { return QuitMsg{} }
+		}
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			s.Quitting = true
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 		return s, tickCmd()
 	case tea.WindowSizeMsg:
@@ -108,8 +116,9 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If already over, maybe we are waiting to quit?
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
-			if s.Session.IsFinished() {
-				return s, tea.Quit
+			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
+				s.Quitting = true
+				return s, func() tea.Msg { return QuitMsg{} }
 			}
 		}
 
@@ -117,7 +126,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			s.Quitting = true
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 
 		// If Session Update switched games (NextGame), View will handle rendering new game state.
@@ -159,13 +169,18 @@ func (s *LocalState) RenderBoard() string {
 }
 
 func (s *LocalState) View() string {
-	// If session finished, maybe show summary? But main handles that.
-	if s.Session.IsFinished() {
-		return ""
-	}
-
 	g := s.Session.CurrentGame
-	card := s.Session.Cards[s.Session.CurrentIndex]
+
+	// Determine which card to display.
+	// If session is finished, show the last card (the one just completed).
+	var card game.CardData
+	if s.Session.IsFinished() {
+		if len(s.Session.Cards) > 0 {
+			card = s.Session.Cards[len(s.Session.Cards)-1]
+		}
+	} else {
+		card = s.Session.Cards[s.Session.CurrentIndex]
+	}
 
 	// 1. Render Banner
 	secretMessageStr := string(g.State.Secret)
@@ -192,6 +207,15 @@ func (s *LocalState) View() string {
 
 	bannerDisplay := bannerBorderTop + "\n" + bannerTxt
 
+	// Initial message / Previous attempts
+	// Shown before the board
+	var introMsg string
+	if g.State.Score.GetAttempts() > 0 {
+		introMsg = fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
+	} else {
+		introMsg = "\nThis is your first try with this text! Good luck!\n"
+	}
+
 	// 2. Render Board
 	customBorder := lipgloss.ThickBorder()
 	customBorder.Top = "═"
@@ -203,7 +227,7 @@ func (s *LocalState) View() string {
 		Border(customBorder).
 		Width(cardWidth + 1) // Match manual header width
 
-	display := bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
+	display := introMsg + "\n" + bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
 
 	// 3. Status Line
 	displayScore := g.State.Score.CurrentScore
@@ -245,13 +269,6 @@ func (s *LocalState) View() string {
 
 	display += "\n" + scoreStyle.Render(statusLine+"\n")
 
-	// Initial message / Previous attempts
-	if g.State.Score.GetAttempts() > 0 {
-		display += fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
-	} else {
-		display += fmt.Sprint("\nThis is your first try with this text! Good luck!")
-	}
-
 	// Final Messages (Loss/Win)
 	if g.State.Loss {
 		finalScore := g.State.Score.CurrentScore
@@ -261,15 +278,35 @@ func (s *LocalState) View() string {
 		scoreStr := fmt.Sprintf("Final score: %d", finalScore)
 
 		if g.State.Revealed {
-			display += "\n" + redStyle.Render("Card revealed with CTRL-R! "+scoreStr)
+			display += "\n" + redStyle.Render("Card revealed with CTRL-R! "+scoreStr) + "\n"
 		} else if g.State.TimerEnabled && g.State.TimeRemaining <= 0 {
-			display += "\n" + redStyle.Render("Time's up! "+scoreStr)
+			display += "\n" + redStyle.Render("Time's up! "+scoreStr) + "\n"
 		} else {
-			display += "\n" + redStyle.Render("Game over! "+scoreStr)
+			display += "\n" + redStyle.Render("Game over! "+scoreStr) + "\n"
 		}
 	} else if g.State.Win {
 		if s.Session.IsFinished() {
-			display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+			if s.Session.IsBatch {
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore)) + "\n"
+			} else {
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", g.State.Score.CurrentScore)) + "\n"
+				if g.State.Score.GotHighScore() {
+					display += "\nYou got a high score!"
+					numPrevious := g.State.Score.GetNumPrevious()
+					if numPrevious > 0 {
+						if numPrevious <= 5 {
+							display += " Previous scores:"
+						} else {
+							display += " Top 5 previous scores:"
+						}
+						topScores := g.State.Score.GetNScoreEntries(5)
+						for _, entry := range topScores {
+							display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+						}
+					}
+					display += "\n"
+				}
+			}
 		}
 	}
 
@@ -465,7 +502,6 @@ func main() {
 	if model.Session.IsSessionLoss() {
 		// Handled by view mostly, but print newline for clean exit
 		fmt.Println()
-	} else if model.Session.IsFinished() {
-		fmt.Printf("\nSession Complete! Aggregate Score: %d\n", model.Session.TotalScore)
 	}
+	// Note: View() now handles the "Session/Batch Complete" message, so we don't print it here.
 }

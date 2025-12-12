@@ -127,3 +127,67 @@ func TestScoreEvent(t *testing.T) {
 		t.Errorf("rightLetter: expected score %d, got %d", expectedScore, scoring.CurrentScore)
 	}
 }
+
+// TestGetNScoreEntries_IncludesCurrent verifies that GetNScoreEntries returns
+// a combined list of historical scores and the current session's score, sorted correctly.
+func TestGetNScoreEntries_IncludesCurrent(t *testing.T) {
+	secret := "test text"
+	hash := calculateHash(secret)
+
+	mockStorage := &MockScoreStorage{
+		Entries: []ScoreHistoryEntry{
+			{Hash: hash, Score: 100, Title: "Low"},
+			{Hash: hash, Score: 300, Title: "High"},
+		},
+	}
+
+	scoring, _ := InitScoring(secret, "Test", mockStorage)
+
+	// Set current score to something in between
+	scoring.CurrentScore = 200
+	if scoring.history.CurrentScore != nil {
+		scoring.history.CurrentScore.Score = 200
+	}
+
+	// Request top 5 entries (should get all 3)
+	entries := scoring.GetNScoreEntries(5)
+
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(entries))
+	}
+
+	// Expected order: 300 (High), 200 (Current), 100 (Low)
+	if entries[0].Score != 300 {
+		t.Errorf("expected first entry score 300, got %d", entries[0].Score)
+	}
+	if entries[1].Score != 200 {
+		t.Errorf("expected second entry score 200, got %d", entries[1].Score)
+	}
+	if entries[2].Score != 100 {
+		t.Errorf("expected third entry score 100, got %d", entries[2].Score)
+	}
+}
+
+// TestGetNumPrevious verifies that GetNumPrevious returns only the count of historical entries.
+func TestGetNumPrevious(t *testing.T) {
+	secret := "test text"
+	hash := calculateHash(secret)
+
+	mockStorage := &MockScoreStorage{
+		Entries: []ScoreHistoryEntry{
+			{Hash: hash, Score: 10},
+			{Hash: hash, Score: 20},
+			{Hash: hash, Score: 30},
+		},
+	}
+
+	scoring, _ := InitScoring(secret, "Test", mockStorage)
+
+	// Current score exists but should not affect the count of *previous* attempts
+	scoring.CurrentScore = 50
+
+	count := scoring.GetNumPrevious()
+	if count != 3 {
+		t.Errorf("expected 3 previous entries, got %d", count)
+	}
+}
