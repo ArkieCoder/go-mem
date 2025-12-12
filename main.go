@@ -28,8 +28,9 @@ var (
 )
 
 type LocalState struct {
-	Session       *game.Session
-	QuitNextCycle bool
+	Session          *game.Session
+	QuitNextCycle    bool
+	ShowFinalMessage bool
 }
 
 type TickMsg time.Time
@@ -86,7 +87,10 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
-		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+		if s.Session.IsSessionLoss() || (s.Session.IsFinished() && !s.ShowFinalMessage) {
+			return s, tea.Quit
+		}
+		if s.QuitNextCycle {
 			return s, tea.Quit
 		}
 		return s, tickCmd()
@@ -98,8 +102,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		ch := msg.String()
 
-		// Handle exit request
-		if state.IsExitRequested(ch) {
+		// Handle exit request or any key after final message
+		if state.IsExitRequested(ch) || s.ShowFinalMessage {
 			return s, tea.Quit
 		}
 
@@ -116,7 +120,10 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.HandleKeyPress(ch)
 		s.Session.Update() // Check transitions
 
-		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+		if s.Session.IsSessionLoss() || (s.Session.IsFinished() && !s.ShowFinalMessage) {
+			return s, tea.Quit
+		}
+		if s.QuitNextCycle {
 			return s, tea.Quit
 		}
 
@@ -159,12 +166,27 @@ func (s *LocalState) RenderBoard() string {
 }
 
 func (s *LocalState) View() string {
-	// If session finished, maybe show summary? But main handles that.
+	g := s.Session.CurrentGame
+
+	// Show final congratulations if needed
+	if s.ShowFinalMessage && g != nil && g.State.Win {
+		finalScore := g.State.Score.CurrentScore
+		display := greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
+		if g.State.Score.GotHighScore() {
+			display += "\nYou got a high score! Top 5 previous scores:"
+			topScores := g.State.Score.GetNScoreEntries(5)
+			for _, entry := range topScores {
+				display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+			}
+		}
+		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+		return display
+	}
+
+	// If session finished, don't show game UI
 	if s.Session.IsFinished() {
 		return ""
 	}
-
-	g := s.Session.CurrentGame
 	card := s.Session.Cards[s.Session.CurrentIndex]
 
 	// 1. Render Banner
@@ -278,7 +300,8 @@ func (s *LocalState) View() string {
 			}
 		}
 		if s.Session.IsFinished() {
-			display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+			s.ShowFinalMessage = true
+			return display // Show this frame, then quit next cycle
 		}
 	}
 
