@@ -87,10 +87,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
-		if s.Session.IsSessionLoss() || (s.Session.IsFinished() && !s.ShowFinalMessage) {
-			return s, tea.Quit
-		}
-		if s.QuitNextCycle {
+		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
 			return s, tea.Quit
 		}
 		return s, tickCmd()
@@ -99,13 +96,18 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.State.Textarea.SetWidth(currentGame.State.CardWidth + 1)
 		lineCount := len(strings.Split(string(currentGame.State.Secret), "\n"))
 		currentGame.State.Textarea.SetHeight(lineCount)
-	case tea.KeyMsg:
-		ch := msg.String()
+		case tea.KeyMsg:
+			ch := msg.String()
 
-		// Handle exit request or any key after final message
-		if state.IsExitRequested(ch) || s.ShowFinalMessage {
-			return s, tea.Quit
-		}
+			// Handle exit request
+			if state.IsExitRequested(ch) {
+				return s, tea.Quit
+			}
+
+			// Any key when finished with win quits
+			if s.Session.IsFinished() && s.Session.CurrentGame != nil && s.Session.CurrentGame.State.Win {
+				return s, tea.Quit
+			}
 
 		// Check if game over before processing?
 		if currentGame.State.Win || currentGame.State.Loss {
@@ -120,10 +122,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.HandleKeyPress(ch)
 		s.Session.Update() // Check transitions
 
-		if s.Session.IsSessionLoss() || (s.Session.IsFinished() && !s.ShowFinalMessage) {
-			return s, tea.Quit
-		}
-		if s.QuitNextCycle {
+		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
 			return s, tea.Quit
 		}
 
@@ -168,8 +167,8 @@ func (s *LocalState) RenderBoard() string {
 func (s *LocalState) View() string {
 	g := s.Session.CurrentGame
 
-	// Show final congratulations if needed
-	if s.ShowFinalMessage && g != nil && g.State.Win {
+	// If session finished with a win, show congratulations
+	if s.Session.IsFinished() && g != nil && g.State.Win {
 		finalScore := g.State.Score.CurrentScore
 		display := greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
 		if g.State.Score.GotHighScore() {
@@ -289,21 +288,7 @@ func (s *LocalState) View() string {
 		} else {
 			display += "\n" + redStyle.Render("Game over! "+scoreStr)
 		}
-	} else if g.State.Win {
-		finalScore := g.State.Score.CurrentScore
-		display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
-		if g.State.Score.GotHighScore() {
-			display += "\nYou got a high score! Top 5 previous scores:"
-			topScores := g.State.Score.GetNScoreEntries(5)
-			for _, entry := range topScores {
-				display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
-			}
-		}
-		if s.Session.IsFinished() {
-			s.ShowFinalMessage = true
-			return display // Show this frame, then quit next cycle
-		}
-	}
+
 
 	return display
 }
@@ -497,7 +482,6 @@ func main() {
 	if model.Session.IsSessionLoss() {
 		// Handled by view mostly, but print newline for clean exit
 		fmt.Println()
-	} else if model.Session.IsFinished() {
-		fmt.Printf("\nSession Complete! Aggregate Score: %d\n", model.Session.TotalScore)
 	}
+	// For finished sessions, the congratulations are shown in View(), so no additional output
 }
