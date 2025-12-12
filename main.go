@@ -87,7 +87,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			return s, nil // Stop ticking, let View render final state
 		}
 		return s, tickCmd()
 	case tea.WindowSizeMsg:
@@ -108,7 +108,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If already over, maybe we are waiting to quit?
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
-			if s.Session.IsFinished() {
+			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
 				return s, tea.Quit
 			}
 		}
@@ -117,7 +117,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			return s, nil // Allow View to render final state
 		}
 
 		// If Session Update switched games (NextGame), View will handle rendering new game state.
