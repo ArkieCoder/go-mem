@@ -176,14 +176,7 @@ func (s *LocalState) View() string {
 			}
 		}
 		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
-		return display
 	}
-
-	// If session finished, don't show game UI
-	if s.Session.IsFinished() {
-		return ""
-	}
-	card := s.Session.Cards[s.Session.CurrentIndex]
 
 	// 1. Render Banner
 	secretMessageStr := string(g.State.Secret)
@@ -290,13 +283,22 @@ func (s *LocalState) View() string {
 		finalScore := g.State.Score.CurrentScore
 		display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore)) + "\n"
 		if g.State.Score.GotHighScore() {
+			display += "You got a high score!"
 			numPrevious := g.State.Score.GetNumPrevious()
 			if numPrevious > 0 {
 				if numPrevious <= 5 {
-					display += "You got a high score! Previous scores:"
+					display += " Previous scores:"
 				} else {
-					display += "You got a high score! Top 5 previous scores:"
+					display += " Top 5 previous scores:"
 				}
+				topScores := g.State.Score.GetNScoreEntries(5)
+				for _, entry := range topScores {
+					display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+				}
+			}
+		}
+		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+	}
 				topScores := g.State.Score.GetNScoreEntries(5)
 				for _, entry := range topScores {
 					display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
