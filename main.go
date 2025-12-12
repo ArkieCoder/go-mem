@@ -279,7 +279,7 @@ func (s *LocalState) View() string {
 			} else {
 				display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", g.State.Score.CurrentScore)) + "\n"
 				if g.State.Score.GotHighScore() {
-					display += "You got a high score!"
+					display += "\nYou got a high score!"
 					numPrevious := g.State.Score.GetNumPrevious()
 					if numPrevious > 0 {
 						if numPrevious <= 5 {
