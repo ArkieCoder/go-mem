@@ -159,13 +159,18 @@ func (s *LocalState) RenderBoard() string {
 }
 
 func (s *LocalState) View() string {
-	// If session finished, maybe show summary? But main handles that.
-	if s.Session.IsFinished() {
-		return ""
-	}
-
 	g := s.Session.CurrentGame
-	card := s.Session.Cards[s.Session.CurrentIndex]
+
+	// Determine which card to display.
+	// If session is finished, show the last card (the one just completed).
+	var card game.CardData
+	if s.Session.IsFinished() {
+		if len(s.Session.Cards) > 0 {
+			card = s.Session.Cards[len(s.Session.Cards)-1]
+		}
+	} else {
+		card = s.Session.Cards[s.Session.CurrentIndex]
+	}
 
 	// 1. Render Banner
 	secretMessageStr := string(g.State.Secret)
@@ -269,7 +274,11 @@ func (s *LocalState) View() string {
 		}
 	} else if g.State.Win {
 		if s.Session.IsFinished() {
-			display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+			if s.Session.IsBatch {
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+			} else {
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", g.State.Score.CurrentScore))
+			}
 		}
 	}
 
@@ -465,7 +474,6 @@ func main() {
 	if model.Session.IsSessionLoss() {
 		// Handled by view mostly, but print newline for clean exit
 		fmt.Println()
-	} else if model.Session.IsFinished() {
-		fmt.Printf("\nSession Complete! Aggregate Score: %d\n", model.Session.TotalScore)
 	}
+	// Note: View() now handles the "Session/Batch Complete" message, so we don't print it here.
 }
