@@ -197,6 +197,15 @@ func (s *LocalState) View() string {
 
 	bannerDisplay := bannerBorderTop + "\n" + bannerTxt
 
+	// Initial message / Previous attempts
+	// Shown before the board
+	var introMsg string
+	if g.State.Score.GetAttempts() > 0 {
+		introMsg = fmt.Sprintf("\nAttempt: %d | High score (this text): %d", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
+	} else {
+		introMsg = "\nThis is your first try with this text! Good luck!"
+	}
+
 	// 2. Render Board
 	customBorder := lipgloss.ThickBorder()
 	customBorder.Top = "═"
@@ -208,7 +217,7 @@ func (s *LocalState) View() string {
 		Border(customBorder).
 		Width(cardWidth + 1) // Match manual header width
 
-	display := bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
+	display := bannerDisplay + introMsg + "\n" + borderStyle.Render(s.RenderBoard())
 
 	// 3. Status Line
 	displayScore := g.State.Score.CurrentScore
@@ -249,13 +258,6 @@ func (s *LocalState) View() string {
 	}
 
 	display += "\n" + scoreStyle.Render(statusLine+"\n")
-
-	// Initial message / Previous attempts
-	if g.State.Score.GetAttempts() > 0 {
-		display += fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
-	} else {
-		display += fmt.Sprint("\nThis is your first try with this text! Good luck!")
-	}
 
 	// Final Messages (Loss/Win)
 	if g.State.Loss {
