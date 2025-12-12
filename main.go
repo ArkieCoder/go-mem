@@ -172,10 +172,17 @@ func (s *LocalState) View() string {
 		finalScore := g.State.Score.CurrentScore
 		display := greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
 		if g.State.Score.GotHighScore() {
-			display += "\nYou got a high score! Top 5 previous scores:"
-			topScores := g.State.Score.GetNScoreEntries(5)
-			for _, entry := range topScores {
-				display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+			numPrevious := g.State.Score.GetNumPrevious()
+			if numPrevious > 0 {
+				if numPrevious <= 5 {
+					display += "\nYou got a high score! Previous scores:"
+				} else {
+					display += "\nYou got a high score! Top 5 previous scores:"
+				}
+				topScores := g.State.Score.GetNScoreEntries(5)
+				for _, entry := range topScores {
+					display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+				}
 			}
 		}
 		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
