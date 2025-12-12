@@ -30,6 +30,7 @@ var (
 type LocalState struct {
 	Session       *game.Session
 	QuitNextCycle bool
+	Quitting      bool
 }
 
 type TickMsg time.Time
@@ -87,9 +88,13 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case QuitMsg:
 		return s, tea.Quit
 	case TickMsg:
+		if s.Quitting {
+			return s, func() tea.Msg { return QuitMsg{} }
+		}
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+			s.Quitting = true
 			return s, func() tea.Msg { return QuitMsg{} }
 		}
 		return s, tickCmd()
@@ -112,6 +117,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
 			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
+				s.Quitting = true
 				return s, func() tea.Msg { return QuitMsg{} }
 			}
 		}
@@ -120,6 +126,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+			s.Quitting = true
 			return s, func() tea.Msg { return QuitMsg{} }
 		}
 
@@ -200,6 +207,15 @@ func (s *LocalState) View() string {
 
 	bannerDisplay := bannerBorderTop + "\n" + bannerTxt
 
+	// Initial message / Previous attempts
+	// Shown before the board
+	var introMsg string
+	if g.State.Score.GetAttempts() > 0 {
+		introMsg = fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
+	} else {
+		introMsg = "\nThis is your first try with this text! Good luck!\n"
+	}
+
 	// 2. Render Board
 	customBorder := lipgloss.ThickBorder()
 	customBorder.Top = "═"
@@ -211,7 +227,7 @@ func (s *LocalState) View() string {
 		Border(customBorder).
 		Width(cardWidth + 1) // Match manual header width
 
-	display := bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
+	display := introMsg + "\n" + bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
 
 	// 3. Status Line
 	displayScore := g.State.Score.CurrentScore
@@ -252,13 +268,6 @@ func (s *LocalState) View() string {
 	}
 
 	display += "\n" + scoreStyle.Render(statusLine+"\n")
-
-	// Initial message / Previous attempts
-	if g.State.Score.GetAttempts() > 0 {
-		display += fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
-	} else {
-		display += fmt.Sprint("\nThis is your first try with this text! Good luck!")
-	}
 
 	// Final Messages (Loss/Win)
 	if g.State.Loss {
