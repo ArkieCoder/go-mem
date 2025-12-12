@@ -165,22 +165,14 @@ func (s *LocalState) RenderBoard() string {
 func (s *LocalState) View() string {
 	g := s.Session.CurrentGame
 
-	// If session finished with a win, show congratulations
-	if s.Session.IsFinished() && g != nil && g.State.Win {
-		finalScore := g.State.Score.CurrentScore
-		display := greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
-		if g.State.Score.GotHighScore() {
-			numPrevious := g.State.Score.GetNumPrevious()
-			if numPrevious > 0 {
-				if numPrevious <= 5 {
-					display += "\nYou got a high score! Previous scores:"
-				} else {
-					display += "\nYou got a high score! Top 5 previous scores:"
-				}
-				topScores := g.State.Score.GetNScoreEntries(5)
-				for _, entry := range topScores {
-					display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
-				}
+	// Get the current or last card
+	var card CardData
+	if s.Session.IsFinished() && len(s.Session.Cards) > 0 {
+		// Show the last card's board
+		card = s.Session.Cards[len(s.Session.Cards)-1]
+	} else {
+		card = s.Session.Cards[s.Session.CurrentIndex]
+	}
 			}
 		}
 		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
@@ -293,6 +285,25 @@ func (s *LocalState) View() string {
 		} else {
 			display += "\n" + redStyle.Render("Game over! "+scoreStr)
 		}
+	}
+	if g.State.Win && s.Session.IsFinished() {
+		finalScore := g.State.Score.CurrentScore
+		display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore)) + "\n"
+		if g.State.Score.GotHighScore() {
+			numPrevious := g.State.Score.GetNumPrevious()
+			if numPrevious > 0 {
+				if numPrevious <= 5 {
+					display += "You got a high score! Previous scores:"
+				} else {
+					display += "You got a high score! Top 5 previous scores:"
+				}
+				topScores := g.State.Score.GetNScoreEntries(5)
+				for _, entry := range topScores {
+					display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+				}
+			}
+		}
+		display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
 	}
 
 	return display
