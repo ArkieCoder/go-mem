@@ -96,18 +96,18 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.State.Textarea.SetWidth(currentGame.State.CardWidth + 1)
 		lineCount := len(strings.Split(string(currentGame.State.Secret), "\n"))
 		currentGame.State.Textarea.SetHeight(lineCount)
-		case tea.KeyMsg:
-			ch := msg.String()
+	case tea.KeyMsg:
+		ch := msg.String()
 
-			// Handle exit request
-			if state.IsExitRequested(ch) {
-				return s, tea.Quit
-			}
+		// Handle exit request
+		if state.IsExitRequested(ch) {
+			return s, tea.Quit
+		}
 
-			// Any key when finished with win quits
-			if s.Session.IsFinished() && s.Session.CurrentGame != nil && s.Session.CurrentGame.State.Win {
-				return s, tea.Quit
-			}
+		// Any key when finished with win quits
+		if s.Session.IsFinished() && s.Session.CurrentGame != nil && s.Session.CurrentGame.State.Win {
+			return s, tea.Quit
+		}
 
 		// Check if game over before processing?
 		if currentGame.State.Win || currentGame.State.Loss {
@@ -288,7 +288,7 @@ func (s *LocalState) View() string {
 		} else {
 			display += "\n" + redStyle.Render("Game over! "+scoreStr)
 		}
-
+	}
 
 	return display
 }
