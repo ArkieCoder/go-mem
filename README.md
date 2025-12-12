@@ -137,7 +137,7 @@ The only thing we have to fear is fear itself.
 *   **-50** per error.
 *   **-100** per hint.
 
-High scores are saved in `~/.go-mem-scores.json`.
+High scores are saved in `~/.config/go-mem/scores.json`.
 
 ## Built With
 
