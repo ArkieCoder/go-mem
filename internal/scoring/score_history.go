@@ -29,22 +29,17 @@ func (sh ScoreHistory) GetHighScoreEntry() *ScoreHistoryEntry {
 // GetNScoreEntries returns the top N score entries from the history, sorted by score.
 func (sh ScoreHistory) GetNScoreEntries(n int) []ScoreHistoryEntry {
 	// Make a copy to avoid modifying the original slice.
-	entries := make([]ScoreHistoryEntry, len(sh.Entries))
-	copy(entries, sh.Entries)
+	entriesCopy := make([]ScoreHistoryEntry, len(sh.Entries))
+	copy(entriesCopy, sh.Entries)
 
-	// Include the current score if it exists
-	if sh.CurrentScore != nil {
-		entries = append(entries, *sh.CurrentScore)
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Score > entries[j].Score
+	sort.Slice(entriesCopy, func(i, j int) bool {
+		return entriesCopy[i].Score > entriesCopy[j].Score
 	})
 
-	if len(entries) < n {
-		return entries
+	if len(entriesCopy) < n {
+		return entriesCopy
 	}
-	return entries[:n]
+	return entriesCopy[:n]
 }
 
 // GotHighScore checks if the current score is greater than or equal to the
