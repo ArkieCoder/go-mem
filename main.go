@@ -87,7 +87,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, nil // Stop ticking, let View render final state
+			return s, tea.Quit
 		}
 		return s, tickCmd()
 	case tea.WindowSizeMsg:
@@ -117,7 +117,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, nil // Allow View to render final state
+			return s, tea.Quit
 		}
 
 		// If Session Update switched games (NextGame), View will handle rendering new game state.
@@ -466,14 +466,11 @@ func main() {
 
 	// Use secretMessage in the Bubbletea program
 	p := tea.NewProgram(model)
-	if _, err := p.Run(); err != nil {
+	m, err := p.Run()
+	if err != nil {
 		fmt.Printf("Error starting the program: %v\n", err)
 	}
 
-	// Final output
-	if model.Session.IsSessionLoss() {
-		// Handled by view mostly, but print newline for clean exit
-		fmt.Println()
+	if finalState, ok := m.(*LocalState); ok {
+		fmt.Println(finalState.View())
 	}
-	// Note: View() now handles the "Session/Batch Complete" message, so we don't print it here.
-}
