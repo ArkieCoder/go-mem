@@ -211,9 +211,9 @@ func (s *LocalState) View() string {
 	// Shown before the board
 	var introMsg string
 	if g.State.Score.GetAttempts() > 0 {
-		introMsg = fmt.Sprintf("Attempt: %d | High score (this text): %d", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
+		introMsg = fmt.Sprintf("\nAttempt: %d | High score (this text): %d\n", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
 	} else {
-		introMsg = "This is your first try with this text! Good luck!"
+		introMsg = "\nThis is your first try with this text! Good luck!\n"
 	}
 
 	// 2. Render Board
