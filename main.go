@@ -201,9 +201,9 @@ func (s *LocalState) View() string {
 	// Shown before the board
 	var introMsg string
 	if g.State.Score.GetAttempts() > 0 {
-		introMsg = fmt.Sprintf("\nAttempt: %d | High score (this text): %d", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
+		introMsg = fmt.Sprintf("Attempt: %d | High score (this text): %d", g.State.Score.GetAttempts()+1, g.State.Score.GetHighScore().Score)
 	} else {
-		introMsg = "\nThis is your first try with this text! Good luck!"
+		introMsg = "This is your first try with this text! Good luck!"
 	}
 
 	// 2. Render Board
@@ -217,7 +217,7 @@ func (s *LocalState) View() string {
 		Border(customBorder).
 		Width(cardWidth + 1) // Match manual header width
 
-	display := bannerDisplay + introMsg + "\n" + borderStyle.Render(s.RenderBoard())
+	display := introMsg + "\n" + bannerDisplay + "\n" + borderStyle.Render(s.RenderBoard())
 
 	// 3. Status Line
 	displayScore := g.State.Score.CurrentScore
