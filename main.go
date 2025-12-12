@@ -268,6 +268,15 @@ func (s *LocalState) View() string {
 			display += "\n" + redStyle.Render("Game over! "+scoreStr)
 		}
 	} else if g.State.Win {
+		finalScore := g.State.Score.CurrentScore
+		display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", finalScore))
+		if g.State.Score.GotHighScore() {
+			display += "\nYou got a high score! Top 5 previous scores:"
+			topScores := g.State.Score.GetNScoreEntries(5)
+			for _, entry := range topScores {
+				display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+			}
+		}
 		if s.Session.IsFinished() {
 			display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
 		}
