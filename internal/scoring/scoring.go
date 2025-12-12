@@ -143,6 +143,10 @@ func (s *Scoring) GetNScoreEntries(n int) []ScoreHistoryEntry {
 	return s.history.GetNScoreEntries(n)
 }
 
+func (s *Scoring) GetNumPrevious() int {
+	return len(s.history.Entries)
+}
+
 // calculateHash generates a SHA256 hash for the given text.
 func calculateHash(text string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(text)))

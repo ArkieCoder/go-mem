@@ -33,6 +33,7 @@ type LocalState struct {
 }
 
 type TickMsg time.Time
+type QuitMsg struct{}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
@@ -83,11 +84,13 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	currentGame := s.Session.CurrentGame
 
 	switch msg := msg.(type) {
+	case QuitMsg:
+		return s, tea.Quit
 	case TickMsg:
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, nil // Stop ticking, let View render final state
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 		return s, tickCmd()
 	case tea.WindowSizeMsg:
@@ -109,7 +112,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
 			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
-				return s, tea.Quit
+				return s, func() tea.Msg { return QuitMsg{} }
 			}
 		}
 
@@ -117,7 +120,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, nil // Allow View to render final state
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 
 		// If Session Update switched games (NextGame), View will handle rendering new game state.
@@ -266,18 +269,34 @@ func (s *LocalState) View() string {
 		scoreStr := fmt.Sprintf("Final score: %d", finalScore)
 
 		if g.State.Revealed {
-			display += "\n" + redStyle.Render("Card revealed with CTRL-R! "+scoreStr)
+			display += "\n" + redStyle.Render("Card revealed with CTRL-R! "+scoreStr) + "\n"
 		} else if g.State.TimerEnabled && g.State.TimeRemaining <= 0 {
-			display += "\n" + redStyle.Render("Time's up! "+scoreStr)
+			display += "\n" + redStyle.Render("Time's up! "+scoreStr) + "\n"
 		} else {
-			display += "\n" + redStyle.Render("Game over! "+scoreStr)
+			display += "\n" + redStyle.Render("Game over! "+scoreStr) + "\n"
 		}
 	} else if g.State.Win {
 		if s.Session.IsFinished() {
 			if s.Session.IsBatch {
-				display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore))
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore)) + "\n"
 			} else {
-				display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", g.State.Score.CurrentScore))
+				display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Final score: %d", g.State.Score.CurrentScore)) + "\n"
+				if g.State.Score.GotHighScore() {
+					display += "\nYou got a high score!"
+					numPrevious := g.State.Score.GetNumPrevious()
+					if numPrevious > 0 {
+						if numPrevious <= 5 {
+							display += " Previous scores:"
+						} else {
+							display += " Top 5 previous scores:"
+						}
+						topScores := g.State.Score.GetNScoreEntries(5)
+						for _, entry := range topScores {
+							display += fmt.Sprintf("\n  * %d on %s", entry.Score, entry.Timestamp)
+						}
+					}
+					display += "\n"
+				}
 			}
 		}
 	}
