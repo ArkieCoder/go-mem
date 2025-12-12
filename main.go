@@ -474,3 +474,4 @@ func main() {
 	if finalState, ok := m.(*LocalState); ok {
 		fmt.Println(finalState.View())
 	}
+}
