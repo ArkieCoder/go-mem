@@ -87,7 +87,10 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
-		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+		if s.Session.IsSessionLoss() {
+			return s, tea.Quit
+		}
+		if s.Session.IsFinished() {
 			return s, tea.Quit
 		}
 		return s, tickCmd()
@@ -101,11 +104,6 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle exit request
 		if state.IsExitRequested(ch) {
-			return s, tea.Quit
-		}
-
-		// Any key when finished with win quits
-		if s.Session.IsFinished() && s.Session.CurrentGame != nil && s.Session.CurrentGame.State.Win {
 			return s, tea.Quit
 		}
 
