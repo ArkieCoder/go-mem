@@ -30,9 +30,11 @@ var (
 type LocalState struct {
 	Session       *game.Session
 	QuitNextCycle bool
+	Quitting      bool
 }
 
 type TickMsg time.Time
+type QuitMsg struct{}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
@@ -83,11 +85,17 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	currentGame := s.Session.CurrentGame
 
 	switch msg := msg.(type) {
+	case QuitMsg:
+		return s, tea.Quit
 	case TickMsg:
+		if s.Quitting {
+			return s, func() tea.Msg { return QuitMsg{} }
+		}
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			s.Quitting = true
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 		return s, tickCmd()
 	case tea.WindowSizeMsg:
@@ -109,7 +117,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
 			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
-				return s, tea.Quit
+				s.Quitting = true
+				return s, func() tea.Msg { return QuitMsg{} }
 			}
 		}
 
@@ -117,7 +126,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Session.Update() // Check transitions
 
 		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
-			return s, tea.Quit
+			s.Quitting = true
+			return s, func() tea.Msg { return QuitMsg{} }
 		}
 
 		// If Session Update switched games (NextGame), View will handle rendering new game state.
@@ -483,12 +493,7 @@ func main() {
 
 	// Use secretMessage in the Bubbletea program
 	p := tea.NewProgram(model)
-	m, err := p.Run()
-	if err != nil {
+	if _, err = p.Run(); err != nil {
 		fmt.Printf("Error starting the program: %v\n", err)
-	}
-
-	if finalState, ok := m.(*LocalState); ok {
-		fmt.Println(finalState.View())
 	}
 }
