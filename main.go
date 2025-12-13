@@ -186,8 +186,18 @@ func (s *LocalState) View() string {
 	secretMessageStr := string(g.State.Secret)
 
 	smLongestLineLen := longestLineLen(secretMessageStr)
-	fileExt := filepath.Ext(card.Source)
-	textTitle := titleCaseToTitle(filepath.Base(strings.TrimSuffix(card.Source, fileExt)))
+
+	var textTitle string
+	if card.Title != "" {
+		textTitle = card.Title
+	} else {
+		fileExt := filepath.Ext(card.Source)
+		textTitle = titleCaseToTitle(filepath.Base(strings.TrimSuffix(card.Source, fileExt)))
+		if card.TotalParts > 1 {
+			textTitle = fmt.Sprintf("%s #%d", textTitle, card.PartIndex)
+		}
+	}
+
 	bannerTxt := fmt.Sprintf("┃ CARD: %s | LOC: %s", textTitle, card.Source)
 
 	cardWidth := smLongestLineLen + 1

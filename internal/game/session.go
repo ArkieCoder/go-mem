@@ -107,15 +107,13 @@ func (s *Session) NextGame() error {
 	}
 
 	// Title logic
-	// We might want to parse title from Source filename?
-	// main.go currently does logic: titleCaseToTitle(filepath.Base(...))
-	// We should probably move that helper or replicate it?
-	// For now, I'll just use Source as title or let main handle it?
-	// Game needs title for Scoring init.
-	// I'll assume Source is the path.
-	// I'll calculate title simple here or pass empty and let Game handle?
-	// Scoring needs a title.
-	title := card.Source // Placeholder, ideally cleaner.
+	title := card.Title
+	if title == "" {
+		title = card.Source
+		if card.TotalParts > 1 {
+			title = fmt.Sprintf("%s #%d", title, card.PartIndex)
+		}
+	}
 
 	ta := textarea.New()
 	ta.ShowLineNumbers = false
