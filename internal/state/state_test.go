@@ -204,6 +204,9 @@ func TestState_TypeThrough_NoPenalty(t *testing.T) {
 	if s.WrongLetter {
 		t.Error("Expected WrongLetter to be false")
 	}
+	if !s.RevealedCharMistakes[0] {
+		t.Error("Expected RevealedCharMistakes[0] to be true")
+	}
 
 	// Score should NOT decrease because mask[0] was not '_'
 	if s.Score.CurrentScore != initialScore {
@@ -266,6 +269,9 @@ func TestState_SpaceSkipLogic(t *testing.T) {
 	}
 	if s.WrongLetter {
 		t.Errorf("After 'x', expected WrongLetter=false (moved on)")
+	}
+	if !s.RevealedCharMistakes[2] {
+		t.Errorf("Expected RevealedCharMistakes[2] to be true")
 	}
 
 	// 3. User types 'a' (correct next letter).

@@ -154,6 +154,11 @@ func (s *LocalState) RenderBoard() string {
 			style = style.Bold(true)
 		}
 
+		// Apply persistent mistake style
+		if g.State.RevealedCharMistakes[i] {
+			style = style.Foreground(lipgloss.Color("9")).Underline(true)
+		}
+
 		// Apply cursor style
 		if !g.State.Win && !g.State.Loss && i == pos {
 			if g.State.WrongLetter {

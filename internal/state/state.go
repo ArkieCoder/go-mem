@@ -21,23 +21,24 @@ type GameOptions struct {
 }
 
 type State struct {
-	Textarea           textarea.Model
-	Mask               []rune
-	Secret             []rune
-	Pos                int
-	Win                bool // To determine if the user has won
-	Loss               bool // To determine if the user has lost
-	Revealed           bool // To determine if the user revealed the card
-	WrongLetter        bool // To determine if the last typed character was wrong
-	Score              scoring.Scoring
-	CardWidth          int
-	BracketedPositions []int
-	FSM                *fsm.FSM
-	CurrentChar        string // Current character being processed
-	TimerEnabled       bool
-	TimeLimit          int // Total time in seconds
-	TimeRemaining      int // Current time remaining in seconds
-	Options            GameOptions
+	Textarea             textarea.Model
+	Mask                 []rune
+	Secret               []rune
+	Pos                  int
+	Win                  bool // To determine if the user has won
+	Loss                 bool // To determine if the user has lost
+	Revealed             bool // To determine if the user revealed the card
+	WrongLetter          bool // To determine if the last typed character was wrong
+	RevealedCharMistakes map[int]bool
+	Score                scoring.Scoring
+	CardWidth            int
+	BracketedPositions   []int
+	FSM                  *fsm.FSM
+	CurrentChar          string // Current character being processed
+	TimerEnabled         bool
+	TimeLimit            int // Total time in seconds
+	TimeRemaining        int // Current time remaining in seconds
+	Options              GameOptions
 }
 
 // ... NewState ...
@@ -49,14 +50,15 @@ func NewState(
 	opts GameOptions,
 ) *State {
 	s := &State{
-		Textarea:     ta,
-		Secret:       []rune(secretMessage),
-		Pos:          0,
-		WrongLetter:  false,
-		Score:        scoring,
-		CardWidth:    cardWidth,
-		TimerEnabled: opts.TimerLimit != 0,
-		Options:      opts,
+		Textarea:             ta,
+		Secret:               []rune(secretMessage),
+		Pos:                  0,
+		WrongLetter:          false,
+		RevealedCharMistakes: make(map[int]bool),
+		Score:                scoring,
+		CardWidth:            cardWidth,
+		TimerEnabled:         opts.TimerLimit != 0,
+		Options:              opts,
 	}
 
 	if s.TimerEnabled {
@@ -386,6 +388,7 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				} else if s.IsIncorrectLetter(s.CurrentChar) {
 					// If the character is ALREADY REVEALED, we give one chance then move on.
 					if s.Mask[s.Pos] != '_' {
+						s.RevealedCharMistakes[s.Pos] = true
 						// Logically "wrong", but we advance without scoring.
 						// This matches the "Type Through" speed flow.
 						e.FSM.Event(ctx, "proceedOnMiss")
