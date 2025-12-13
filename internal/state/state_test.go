@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"go-mem/internal/scoring"
 	"testing"
 
@@ -150,6 +151,74 @@ func TestState_WinLoss(t *testing.T) {
 
 	if !s.LostGame() {
 		t.Error("Should be lost game if score < 0")
+	}
+}
+
+func TestState_TabJump(t *testing.T) {
+	// Secret: "A B C"
+	// Mask:   "_ _ _"
+	ta := textarea.New()
+	sc, _ := scoring.InitScoring("A B C", "Title", &MockStorage{})
+	s := NewState("A B C", 20, ta, *sc, GameOptions{})
+	s.InitMask()
+
+	// Reveal "A" manually for test setup
+	s.Mask[0] = 'A'
+	// Pos is 0.
+
+	// Init FSM
+	s.FSM.Event(context.Background(), "initGame")
+
+	// Trigger Tab (Jump) via input "tab"
+	s.FSM.Event(context.Background(), "input", "tab")
+
+	// Expect jump to next '_'.
+	// "A" (0) -> " " (1, ignored/skipped?)
+	// Wait, Jump logic finds next '_'.
+	// " " is not '_'.
+	// "B" (2) is '_'.
+	// So Pos should be 2.
+	if s.Pos != 2 {
+		t.Errorf("Expected Pos to jump to 2, got %d", s.Pos)
+	}
+}
+
+func TestState_TypeThrough_NoPenalty(t *testing.T) {
+	// Secret: "AB"
+	// Mask: "AB" (Fully revealed)
+	ta := textarea.New()
+	sc, _ := scoring.InitScoring("AB", "Title", &MockStorage{})
+	s := NewState("AB", 20, ta, *sc, GameOptions{})
+	s.InitMask()
+	s.Mask[0] = 'A'
+	s.Mask[1] = 'B'
+
+	s.FSM.Event(context.Background(), "initGame")
+
+	initialScore := s.Score.CurrentScore
+
+	// Type Wrong Letter on Revealed Character (Pos 0)
+	s.FSM.Event(context.Background(), "input", "Z")
+
+	// Should be WrongLetter = true
+	if !s.WrongLetter {
+		t.Error("Expected WrongLetter to be true")
+	}
+
+	// Score should NOT decrease because mask[0] was not '_'
+	if s.Score.CurrentScore != initialScore {
+		t.Errorf("Expected score %d, got %d", initialScore, s.Score.CurrentScore)
+	}
+
+	// Type Correct Letter
+	s.FSM.Event(context.Background(), "input", "A")
+
+	// Should advance
+	if s.Pos != 1 {
+		t.Errorf("Expected Pos to advance to 1, got %d", s.Pos)
+	}
+	if s.WrongLetter {
+		t.Error("Expected WrongLetter to be false")
 	}
 }
 

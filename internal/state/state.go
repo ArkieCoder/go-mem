@@ -93,8 +93,8 @@ func (s *State) ApplyGameModes(opts GameOptions) {
 	if opts.NWords > 0 {
 		s.RevealRandomWords(opts.NWords)
 	}
-	// Note: We no longer auto-skip revealed characters here.
-	// User must type through or Tab jump.
+	// Skip spaces/punctuation, but stop at revealed letters
+	s.SkipIgnorable()
 }
 
 func (s *State) RevealFirstLetters() {
@@ -181,11 +181,11 @@ func (s *State) RevealRandomWords(n int) {
 	}
 }
 
-func (s *State) SkipRevealed() {
-	// Skip spaces and punctuation AND ALREADY REVEALED letters in the secret message
-	for s.Pos < len(s.Secret) && (s.ShouldIgnore(string(s.Secret[s.Pos])) || slices.Contains(s.BracketedPositions, s.Pos) || s.Mask[s.Pos] != '_') {
-		// Only reveal if it's punctuation/brackets. If it's already revealed (Mask != '_'), we just skip.
-		// But we need to ensure Mask is consistent.
+func (s *State) SkipIgnorable() {
+	// Skip spaces and punctuation (ShouldIgnore) AND bracketed content.
+	// STOP at revealed letters (Mask != '_' but NOT Ignorable).
+	for s.Pos < len(s.Secret) && (s.ShouldIgnore(string(s.Secret[s.Pos])) || slices.Contains(s.BracketedPositions, s.Pos)) {
+		// Ensure Mask is updated for skipped chars (usually InitMask handled it, but just in case)
 		if s.Mask[s.Pos] == '_' {
 			s.Mask[s.Pos] = s.Secret[s.Pos]
 		}
@@ -254,7 +254,7 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 			}
 
 			// Check if the game is already won
-			if s.GotCorrectMessage() {
+			if s.GotCorrectMessage() && s.Pos >= len(s.Secret) {
 				s.Win = true
 				e.FSM.Event(ctx, "gameEnd")
 				return
@@ -297,13 +297,13 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 			e.FSM.Event(ctx, "gameEnd")
 		},
 		"enter_processChar": func(ctx context.Context, e *fsm.Event) {
-			// Note: We do NOT skip revealed characters automatically anymore.
-			// s.SkipRevealed() removed.
+			// Skip ignorable chars (spaces/punc) but STOP at revealed letters
+			s.SkipIgnorable()
 
-			// Update UI to show skipped chars immediately (if any logic changed)
+			// Update UI to show skipped chars immediately
 			s.Textarea.SetValue(string(s.Mask))
 
-			// Check if we reached end
+			// Check if we reached end after skipping
 			if s.Pos >= len(s.Secret) {
 				if string(s.Mask) == string(s.Secret) {
 					s.Win = true
@@ -401,8 +401,9 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				s.Score.ScoreEvent("wordBonus")
 			}
 
-			// If the message is complete, win immediately
-			if string(s.Mask) == string(s.Secret) {
+			// If the message is complete (reached end of content), win immediately
+			// Note: We check Pos, not just Mask equality, to force typing through revealed chars.
+			if s.Pos >= len(s.Secret)-1 {
 				s.Win = true
 				s.Score.ScoreEvent("messageBonus") // Apply bonus here as it won't be applied in evaluating
 				if s.TimerEnabled {
