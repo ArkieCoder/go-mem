@@ -214,6 +214,7 @@ func getStateTransitions() []fsm.EventDesc {
 		{Name: "revealed", Src: []string{"revealNextChar"}, Dst: "updateMask"},
 		{Name: "match", Src: []string{"checkCorrectness"}, Dst: "gotMatch"},
 		{Name: "mismatch", Src: []string{"checkCorrectness"}, Dst: "noMatch"},
+		{Name: "proceedOnMiss", Src: []string{"checkCorrectness"}, Dst: "advancing"},
 
 		{Name: "matched", Src: []string{"gotMatch"}, Dst: "updateMask"},
 		{Name: "gameEnd", Src: []string{"gotMatch"}, Dst: "endState"}, // Allow early exit from gotMatch
@@ -383,7 +384,15 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				if s.IsCorrectLetter(s.CurrentChar) {
 					e.FSM.Event(ctx, "match")
 				} else if s.IsIncorrectLetter(s.CurrentChar) {
-					e.FSM.Event(ctx, "mismatch")
+					// If the character is ALREADY REVEALED, we give one chance then move on.
+					if s.Mask[s.Pos] != '_' {
+						// Logically "wrong", but we advance without scoring.
+						// This matches the "Type Through" speed flow.
+						e.FSM.Event(ctx, "proceedOnMiss")
+					} else {
+						// Hidden character error: Blocking state.
+						e.FSM.Event(ctx, "mismatch")
+					}
 				} else {
 					// Should not happen given logic, but treat as ignore?
 					// If we are at end of string?
@@ -458,6 +467,8 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 		},
 		"enter_advancing": func(ctx context.Context, e *fsm.Event) {
 			s.Pos++
+			s.SkipIgnorable()
+			s.Textarea.SetValue(string(s.Mask))
 			e.FSM.Event(ctx, "advanced")
 		},
 		"enter_updateScore": func(ctx context.Context, e *fsm.Event) {

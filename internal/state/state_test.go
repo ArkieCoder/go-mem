@@ -200,9 +200,9 @@ func TestState_TypeThrough_NoPenalty(t *testing.T) {
 	// Type Wrong Letter on Revealed Character (Pos 0)
 	s.FSM.Event(context.Background(), "input", "Z")
 
-	// Should be WrongLetter = true
-	if !s.WrongLetter {
-		t.Error("Expected WrongLetter to be true")
+	// Should be WrongLetter = false (we move on)
+	if s.WrongLetter {
+		t.Error("Expected WrongLetter to be false")
 	}
 
 	// Score should NOT decrease because mask[0] was not '_'
@@ -210,15 +210,21 @@ func TestState_TypeThrough_NoPenalty(t *testing.T) {
 		t.Errorf("Expected score %d, got %d", initialScore, s.Score.CurrentScore)
 	}
 
-	// Type Correct Letter
-	s.FSM.Event(context.Background(), "input", "A")
-
-	// Should advance
+	// Should advance to 1 ('B')
 	if s.Pos != 1 {
-		t.Errorf("Expected Pos to advance to 1, got %d", s.Pos)
+		t.Errorf("Expected Pos to advance to 1 after wrong input on revealed char, got %d", s.Pos)
 	}
-	if s.WrongLetter {
-		t.Error("Expected WrongLetter to be false")
+
+	// Type Correct Letter 'B' at Pos 1
+	s.FSM.Event(context.Background(), "input", "B")
+
+	// Should Win (Pos stays at 1 because game ended)
+	if !s.Win {
+		t.Error("Expected Win")
+	}
+	// Score should increase (Win bonus)
+	if s.Score.CurrentScore <= initialScore {
+		t.Errorf("Expected score increase, got %d", s.Score.CurrentScore)
 	}
 }
 
@@ -227,3 +233,46 @@ type MockStorage struct{}
 
 func (m *MockStorage) LoadAll() ([]scoring.ScoreHistoryEntry, error)     { return nil, nil }
 func (m *MockStorage) SaveAll(entries []scoring.ScoreHistoryEntry) error { return nil }
+
+func TestState_SpaceSkipLogic(t *testing.T) {
+	// Reproduce/Verify logic for skipping spaces immediately
+	ta := textarea.New()
+	store := &MockStorage{} // Use existing MockStorage
+	sc, _ := scoring.InitScoring("I have", "Title", store)
+
+	opts := GameOptions{FirstLetter: true}
+
+	s := NewState("I have", 20, ta, *sc, opts)
+	s.InitMask()
+	s.ApplyGameModes(opts)
+
+	s.FSM.Event(context.Background(), "initGame")
+
+	// 1. User types 'I'. Correct.
+	s.FSM.Event(context.Background(), "input", "I")
+
+	// Eager skip check: Pos should be 2 ('h') immediately.
+	if s.Pos != 2 {
+		t.Errorf("After 'I', expected Pos 2 ('h'), got %d", s.Pos)
+	}
+
+	// 2. User types 'x' (wrong).
+	s.FSM.Event(context.Background(), "input", "x")
+
+	// With "Move On" logic, we expect Pos to advance past 'h' (2 -> 3)
+	// 'h' was revealed (First Letter mode).
+	if s.Pos != 3 {
+		t.Errorf("After 'x', expected Pos 3 ('a'), got %d", s.Pos)
+	}
+	if s.WrongLetter {
+		t.Errorf("After 'x', expected WrongLetter=false (moved on)")
+	}
+
+	// 3. User types 'a' (correct next letter).
+	s.FSM.Event(context.Background(), "input", "a")
+
+	// Should advance to 4 ('v')
+	if s.Pos != 4 {
+		t.Errorf("After 'a', expected Pos 4 ('v'), got %d", s.Pos)
+	}
+}

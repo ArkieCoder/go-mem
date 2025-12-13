@@ -450,8 +450,8 @@ func TestGame_TypeThrough_EdgeCase(t *testing.T) {
 	g.HandleKeyPress("o")
 
 	// Should advance
-	// 'o' matched at 6. advance -> 7.
-	if g.State.Pos != 7 {
-		t.Errorf("Pos should be 7 after 'o', got %d", g.State.Pos)
+	// 'o' matched at 6. advance -> 7 (space). SkipIgnorable -> 8.
+	if g.State.Pos != 8 {
+		t.Errorf("Pos should be 8 after 'o' (skipping space), got %d", g.State.Pos)
 	}
 }
