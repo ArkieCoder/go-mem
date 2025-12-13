@@ -10,8 +10,11 @@ import (
 )
 
 type CardData struct {
-	Content string
-	Source  string
+	Content    string
+	Source     string
+	Title      string
+	PartIndex  int
+	TotalParts int
 }
 
 // LoadCards loads cards from a list of paths (files or directories).
@@ -78,15 +81,39 @@ func loadFile(path string) ([]CardData, error) {
 	separatorRe := regexp.MustCompile(`(?m)^-{3,}[ \t]*$`)
 	parts := separatorRe.Split(content, -1)
 
-	var cards []CardData
+	// Calculate total valid parts first
+	var validParts []string
 	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
 		if len(trimmed) > 0 {
-			cards = append(cards, CardData{
-				Content: trimmed,
-				Source:  path,
-			})
+			validParts = append(validParts, trimmed)
 		}
+	}
+
+	totalParts := len(validParts)
+	var cards []CardData
+
+	for i, trimmed := range validParts {
+		// Check for NAME: header
+		title := ""
+		lines := strings.Split(trimmed, "\n")
+		if len(lines) > 0 {
+			firstLine := strings.TrimSpace(lines[0])
+			if strings.HasPrefix(firstLine, "NAME:") {
+				title = strings.TrimSpace(strings.TrimPrefix(firstLine, "NAME:"))
+				// Remove first line from content
+				trimmed = strings.Join(lines[1:], "\n")
+				trimmed = strings.TrimSpace(trimmed)
+			}
+		}
+
+		cards = append(cards, CardData{
+			Content:    trimmed,
+			Source:     path,
+			Title:      title,
+			PartIndex:  i + 1,
+			TotalParts: totalParts,
+		})
 	}
 
 	return cards, nil
