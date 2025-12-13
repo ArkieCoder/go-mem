@@ -17,6 +17,10 @@
   - `internal/state`: Finite State Machine (FSM) and game logic.
   - `internal/scoring`: Scoring rules and JSON persistence.
 - **Conventions**: Prefer `lipgloss` for styling. Ensure TUI views handle newlines correctly.
+- **Testing**:
+  - **New Features**: ALWAYS create or update tests when adding new features.
+  - **Bug Fixes**: ALWAYS add a regression test when fixing a bug.
+  - **Verify**: ALWAYS run tests (`go test ./...`) and display the output BEFORE committing any code.
 
 ## Agent Permissions & Constraints
 - **Git Operations**: Do not run any git operations without getting human approval.
