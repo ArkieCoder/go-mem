@@ -525,7 +525,10 @@ func main() {
 
 		// Check for loss
 		if session.IsSessionLoss() {
-			break
+			// If revealed (gave up), continue to next card. Otherwise (timer), end session.
+			if !session.CurrentGame.State.Revealed {
+				break
+			}
 		}
 
 		// Advance to next card
