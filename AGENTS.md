@@ -20,7 +20,7 @@
 - **Testing**:
   - **New Features**: ALWAYS create or update tests when adding new features.
   - **Bug Fixes**: ALWAYS add a regression test when fixing a bug.
-  - **Verify**: ALWAYS run tests (`go test ./...`) and display the output BEFORE committing any code.
+  - **Verify**: ALWAYS run tests (`go test -count=1 ./...`) and display the output BEFORE committing any code.
 
 ## Agent Permissions & Constraints
 - **Git Operations**: Do not run any git operations without getting human approval.
