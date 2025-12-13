@@ -455,6 +455,8 @@ func main() {
 	var nRandom strictIntFlag
 	var nWords strictIntFlag
 	var randomCards bool
+	var showUpdate bool
+	var showRemove bool
 
 	// Timer flags
 	flag.Var(&tFlag, "timer", "Set countdown timer (e.g. 30 or 1:30). Default is auto based on length.")
@@ -477,6 +479,12 @@ func main() {
 	flag.BoolVar(&randomCards, "rc", false, "Randomize presentation order of cards (shorthand)")
 	flag.BoolVar(&randomCards, "random", false, "Randomize presentation order of cards (shorthand)")
 
+	// Meta flags
+	flag.BoolVar(&showUpdate, "update", false, "Show update instructions")
+	flag.BoolVar(&showUpdate, "u", false, "Show update instructions (shorthand)")
+	flag.BoolVar(&showRemove, "remove", false, "Show uninstall instructions")
+	flag.BoolVar(&showRemove, "r", false, "Show uninstall instructions (shorthand)")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <path-to-file> [more files...]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -486,10 +494,33 @@ func main() {
 		fmt.Fprintf(os.Stderr, "   -nr, --n-random=N       Reveal N random letters\n")
 		fmt.Fprintf(os.Stderr, "  -nfw, --n-words=N        Reveal N random words\n")
 		fmt.Fprintf(os.Stderr, "   -rc, --random-cards     Randomize order of cards (Batch Mode only)\n")
+		fmt.Fprintf(os.Stderr, "    -u, --update           Show update instructions\n")
+		fmt.Fprintf(os.Stderr, "    -r, --remove           Show uninstall instructions\n")
 		fmt.Fprintf(os.Stderr, "    -h, --help             Show this help message\n")
 	}
 
 	flag.Parse()
+
+	if showUpdate {
+		fmt.Println("Thank you for using go-mem!  To update the app yourself, simply run:")
+		fmt.Println("  $ curl -fsSL https://raw.githubusercontent.com/ArkieCoder/go-mem/master/install.sh | bash")
+		return
+	}
+
+	if showRemove {
+		executablePath, err := os.Executable()
+		if err != nil {
+			// Fallback to default if path can't be determined
+			executablePath = "/usr/local/bin/go-mem"
+		}
+		fmt.Println("Thank you for using go-mem!  Sorry you're uninstalling!  To remove go-mem, simply run:")
+		fmt.Printf("  $ sudo rm %s\n", executablePath)
+		fmt.Println("  $ sudo rm -rf /usr/local/share/go-mem")
+		fmt.Println("  $ sudo rm /usr/local/share/man/man1/go-mem.1")
+		fmt.Println("")
+		fmt.Println("Were there problems with go-mem?  If so, please create an issue at https://github.com/ArkieCoder/go-mem.  Goodbye!")
+		return
+	}
 
 	// Get non-flag arguments
 	args := flag.Args()
