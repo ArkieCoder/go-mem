@@ -164,19 +164,17 @@ func (s *Session) Update() {
 		// Add score
 		s.TotalScore += s.CurrentGame.State.Score.CurrentScore
 
-		// Advance
-		s.CurrentIndex++
-		if s.CurrentIndex < len(s.Cards) {
-			_ = s.NextGame() // Start next
-		} else {
-			// Session Complete
-			// We can mark a flag or just leave CurrentIndex at end
-		}
+		// Note: We used to advance automatically here.
+		// Now we leave the session in this state and let the main loop advance it.
 	}
 }
 
 func (s *Session) IsFinished() bool {
 	return s.CurrentIndex >= len(s.Cards)
+}
+
+func (s *Session) IsLastGame() bool {
+	return s.CurrentIndex == len(s.Cards)-1
 }
 
 func (s *Session) IsSessionLoss() bool {

@@ -93,7 +93,7 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		currentGame.HandleTick()
 		s.Session.Update() // Check for session loss or transition
-		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+		if s.Session.IsSessionLoss() || s.Session.IsFinished() || currentGame.State.Win {
 			s.Quitting = true
 			return s, func() tea.Msg { return QuitMsg{} }
 		}
@@ -116,7 +116,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If already over, maybe we are waiting to quit?
 			// Session update should have handled transitions.
 			// If we are here, maybe we are at the end of session?
-			if s.Session.IsFinished() || s.Session.IsSessionLoss() {
+			// Note: With the loop refactor, we quit on any Win/Loss of the CURRENT game.
+			if s.Session.IsFinished() || s.Session.IsSessionLoss() || currentGame.State.Win {
 				s.Quitting = true
 				return s, func() tea.Msg { return QuitMsg{} }
 			}
@@ -125,7 +126,8 @@ func (s *LocalState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentGame.HandleKeyPress(ch)
 		s.Session.Update() // Check transitions
 
-		if s.Session.IsSessionLoss() || s.Session.IsFinished() {
+		// Note: With loop refactor, we check for single game win too
+		if s.Session.IsSessionLoss() || s.Session.IsFinished() || currentGame.State.Win {
 			s.Quitting = true
 			return s, func() tea.Msg { return QuitMsg{} }
 		}
@@ -295,7 +297,8 @@ func (s *LocalState) View() string {
 			display += "\n" + redStyle.Render("Game over! "+scoreStr) + "\n"
 		}
 	} else if g.State.Win {
-		if s.Session.IsFinished() {
+		// Use IsLastGame for the final batch message
+		if s.Session.IsLastGame() {
 			if s.Session.IsBatch {
 				display += "\n" + greenStyle.Render(fmt.Sprintf("Batch Complete! Total Score: %d", s.Session.TotalScore)) + "\n"
 			} else {
@@ -317,6 +320,9 @@ func (s *LocalState) View() string {
 					display += "\n"
 				}
 			}
+		} else {
+			// Intermediate card in batch
+			display += "\n" + greenStyle.Render(fmt.Sprintf("Congratulations! Card Score: %d", g.State.Score.CurrentScore)) + "\n"
 		}
 	}
 
@@ -502,16 +508,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Use secretMessage in the Bubbletea program
-	p := tea.NewProgram(model)
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error starting the program: %v\n", err)
-	}
+	// Main Loop: Run one program per card
+	session := model.Session
+	for {
+		// Create a fresh model wrapper for the current session state
+		currentModel := &LocalState{
+			Session: session,
+		}
 
-	// Final output
-	if model.Session.IsSessionLoss() {
-		// Handled by view mostly, but print newline for clean exit
-		fmt.Println()
+		p := tea.NewProgram(currentModel)
+		_, err := p.Run()
+		if err != nil {
+			fmt.Printf("Error starting the program: %v\n", err)
+			break
+		}
+
+		// Print final view to persist history
+		fmt.Println(currentModel.View())
+
+		// Check for loss
+		if session.IsSessionLoss() {
+			break
+		}
+
+		// Advance to next card
+		session.CurrentIndex++
+		if session.IsFinished() {
+			break
+		}
+
+		// Prepare next game
+		if err := session.NextGame(); err != nil {
+			fmt.Printf("Error preparing next game: %v\n", err)
+			break
+		}
 	}
-	// Note: View() now handles the "Session/Batch Complete" message, so we don't print it here.
 }

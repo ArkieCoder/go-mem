@@ -60,6 +60,10 @@ func TestSession_Progression(t *testing.T) {
 	// Update Session
 	sess.Update()
 
+	// Manually advance (simulating main loop)
+	sess.CurrentIndex++
+	_ = sess.NextGame()
+
 	// Should have moved to Game 2
 	if sess.CurrentIndex != 1 {
 		t.Errorf("Should be at index 1, got %d", sess.CurrentIndex)
@@ -71,6 +75,9 @@ func TestSession_Progression(t *testing.T) {
 	// Win Game 2
 	sess.CurrentGame.HandleKeyPress("B")
 	sess.Update()
+
+	// Manually advance
+	sess.CurrentIndex++
 
 	// Should be finished
 	if !sess.IsFinished() {
@@ -105,6 +112,10 @@ func TestSession_TimePersistence(t *testing.T) {
 	// Win Game 1
 	sess.CurrentGame.HandleKeyPress("A")
 	sess.Update()
+
+	// Manually advance
+	sess.CurrentIndex++
+	_ = sess.NextGame()
 
 	// Session TimeRemaining should be 90
 	if sess.TimeRemaining != 90 {
