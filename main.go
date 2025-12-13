@@ -523,9 +523,6 @@ func main() {
 			break
 		}
 
-		// Print final view to persist history
-		fmt.Println(currentModel.View())
-
 		// Check for loss
 		if session.IsSessionLoss() {
 			break
