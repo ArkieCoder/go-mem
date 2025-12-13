@@ -93,8 +93,8 @@ func (s *State) ApplyGameModes(opts GameOptions) {
 	if opts.NWords > 0 {
 		s.RevealRandomWords(opts.NWords)
 	}
-	// After applying modes, ensure we are advanced past any initially revealed characters
-	s.SkipRevealed()
+	// Note: We no longer auto-skip revealed characters here.
+	// User must type through or Tab jump.
 }
 
 func (s *State) RevealFirstLetters() {
@@ -203,6 +203,7 @@ func getStateTransitions() []fsm.EventDesc {
 		{Name: "gameEnd", Src: []string{"checkGameState", "evaluating", "revealingAll"}, Dst: "endState"},
 		{Name: "proceed", Src: []string{"checkGameState"}, Dst: "processChar"},
 		{Name: "revealAll", Src: []string{"checkGameState"}, Dst: "revealingAll"},
+		{Name: "jump", Src: []string{"checkGameState"}, Dst: "jumping"},
 
 		// Character Processing
 		{Name: "ignore", Src: []string{"processChar"}, Dst: "evaluating"},
@@ -219,6 +220,7 @@ func getStateTransitions() []fsm.EventDesc {
 		{Name: "notMatched", Src: []string{"noMatch"}, Dst: "updateScore"},
 
 		{Name: "advance", Src: []string{"updateMask"}, Dst: "advancing"},
+		{Name: "jumped", Src: []string{"jumping"}, Dst: "evaluating"},
 
 		{Name: "advanced", Src: []string{"advancing"}, Dst: "evaluating"},
 		{Name: "scoreCalculated", Src: []string{"updateScore"}, Dst: "evaluating"},
@@ -278,6 +280,12 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				return
 			}
 
+			// Check for Jump (Tab) request
+			if IsTabRequested(s.CurrentChar) {
+				e.FSM.Event(ctx, "jump")
+				return
+			}
+
 			e.FSM.Event(ctx, "proceed")
 		},
 		"enter_revealingAll": func(ctx context.Context, e *fsm.Event) {
@@ -289,13 +297,13 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 			e.FSM.Event(ctx, "gameEnd")
 		},
 		"enter_processChar": func(ctx context.Context, e *fsm.Event) {
-			// Use the helper to skip revealed logic (ensures Pos is at first UNREVEALED char)
-			s.SkipRevealed()
+			// Note: We do NOT skip revealed characters automatically anymore.
+			// s.SkipRevealed() removed.
 
-			// Update UI to show skipped chars immediately
+			// Update UI to show skipped chars immediately (if any logic changed)
 			s.Textarea.SetValue(string(s.Mask))
 
-			// Check if we reached end after skipping
+			// Check if we reached end
 			if s.Pos >= len(s.Secret) {
 				if string(s.Mask) == string(s.Secret) {
 					s.Win = true
@@ -407,9 +415,26 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 
 			e.FSM.Event(ctx, "matched")
 		},
+		"enter_jumping": func(ctx context.Context, e *fsm.Event) {
+			// Find next unrevealed character
+			for s.Pos < len(s.Secret) {
+				// We want to stop at the next '_'.
+				// But we also need to respect SkipRevealed logic for punctuation?
+				// User said "Jump to next open position".
+				// Open position means Mask == '_'.
+				if s.Mask[s.Pos] == '_' {
+					break
+				}
+				s.Pos++
+			}
+			e.FSM.Event(ctx, "jumped")
+		},
 		"enter_noMatch": func(ctx context.Context, e *fsm.Event) {
 			s.WrongLetter = true
-			s.Score.ScoreEvent("wrongLetter")
+			// Only apply penalty if the character was NOT revealed
+			if s.Pos < len(s.Mask) && s.Mask[s.Pos] == '_' {
+				s.Score.ScoreEvent("wrongLetter")
+			}
 			e.FSM.Event(ctx, "notMatched")
 		},
 		"enter_revealNextChar": func(ctx context.Context, e *fsm.Event) {

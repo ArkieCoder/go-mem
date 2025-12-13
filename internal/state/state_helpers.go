@@ -51,6 +51,10 @@ func IsRevealRequested(ch string) bool {
 	return ch == "ctrl+r"
 }
 
+func IsTabRequested(ch string) bool {
+	return ch == "tab"
+}
+
 func (s State) ShouldIgnore(ch string) bool {
 	if len(ch) == 0 {
 		return false
