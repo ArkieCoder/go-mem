@@ -21,23 +21,24 @@ type GameOptions struct {
 }
 
 type State struct {
-	Textarea           textarea.Model
-	Mask               []rune
-	Secret             []rune
-	Pos                int
-	Win                bool // To determine if the user has won
-	Loss               bool // To determine if the user has lost
-	Revealed           bool // To determine if the user revealed the card
-	WrongLetter        bool // To determine if the last typed character was wrong
-	Score              scoring.Scoring
-	CardWidth          int
-	BracketedPositions []int
-	FSM                *fsm.FSM
-	CurrentChar        string // Current character being processed
-	TimerEnabled       bool
-	TimeLimit          int // Total time in seconds
-	TimeRemaining      int // Current time remaining in seconds
-	Options            GameOptions
+	Textarea             textarea.Model
+	Mask                 []rune
+	Secret               []rune
+	Pos                  int
+	Win                  bool // To determine if the user has won
+	Loss                 bool // To determine if the user has lost
+	Revealed             bool // To determine if the user revealed the card
+	WrongLetter          bool // To determine if the last typed character was wrong
+	RevealedCharMistakes map[int]bool
+	Score                scoring.Scoring
+	CardWidth            int
+	BracketedPositions   []int
+	FSM                  *fsm.FSM
+	CurrentChar          string // Current character being processed
+	TimerEnabled         bool
+	TimeLimit            int // Total time in seconds
+	TimeRemaining        int // Current time remaining in seconds
+	Options              GameOptions
 }
 
 // ... NewState ...
@@ -49,14 +50,15 @@ func NewState(
 	opts GameOptions,
 ) *State {
 	s := &State{
-		Textarea:     ta,
-		Secret:       []rune(secretMessage),
-		Pos:          0,
-		WrongLetter:  false,
-		Score:        scoring,
-		CardWidth:    cardWidth,
-		TimerEnabled: opts.TimerLimit != 0,
-		Options:      opts,
+		Textarea:             ta,
+		Secret:               []rune(secretMessage),
+		Pos:                  0,
+		WrongLetter:          false,
+		RevealedCharMistakes: make(map[int]bool),
+		Score:                scoring,
+		CardWidth:            cardWidth,
+		TimerEnabled:         opts.TimerLimit != 0,
+		Options:              opts,
 	}
 
 	if s.TimerEnabled {
@@ -93,8 +95,8 @@ func (s *State) ApplyGameModes(opts GameOptions) {
 	if opts.NWords > 0 {
 		s.RevealRandomWords(opts.NWords)
 	}
-	// After applying modes, ensure we are advanced past any initially revealed characters
-	s.SkipRevealed()
+	// Skip spaces/punctuation, but stop at revealed letters
+	s.SkipIgnorable()
 }
 
 func (s *State) RevealFirstLetters() {
@@ -181,11 +183,11 @@ func (s *State) RevealRandomWords(n int) {
 	}
 }
 
-func (s *State) SkipRevealed() {
-	// Skip spaces and punctuation AND ALREADY REVEALED letters in the secret message
-	for s.Pos < len(s.Secret) && (s.ShouldIgnore(string(s.Secret[s.Pos])) || slices.Contains(s.BracketedPositions, s.Pos) || s.Mask[s.Pos] != '_') {
-		// Only reveal if it's punctuation/brackets. If it's already revealed (Mask != '_'), we just skip.
-		// But we need to ensure Mask is consistent.
+func (s *State) SkipIgnorable() {
+	// Skip spaces and punctuation (ShouldIgnore) AND bracketed content.
+	// STOP at revealed letters (Mask != '_' but NOT Ignorable).
+	for s.Pos < len(s.Secret) && (s.ShouldIgnore(string(s.Secret[s.Pos])) || slices.Contains(s.BracketedPositions, s.Pos)) {
+		// Ensure Mask is updated for skipped chars (usually InitMask handled it, but just in case)
 		if s.Mask[s.Pos] == '_' {
 			s.Mask[s.Pos] = s.Secret[s.Pos]
 		}
@@ -203,6 +205,7 @@ func getStateTransitions() []fsm.EventDesc {
 		{Name: "gameEnd", Src: []string{"checkGameState", "evaluating", "revealingAll"}, Dst: "endState"},
 		{Name: "proceed", Src: []string{"checkGameState"}, Dst: "processChar"},
 		{Name: "revealAll", Src: []string{"checkGameState"}, Dst: "revealingAll"},
+		{Name: "jump", Src: []string{"checkGameState"}, Dst: "jumping"},
 
 		// Character Processing
 		{Name: "ignore", Src: []string{"processChar"}, Dst: "evaluating"},
@@ -213,12 +216,14 @@ func getStateTransitions() []fsm.EventDesc {
 		{Name: "revealed", Src: []string{"revealNextChar"}, Dst: "updateMask"},
 		{Name: "match", Src: []string{"checkCorrectness"}, Dst: "gotMatch"},
 		{Name: "mismatch", Src: []string{"checkCorrectness"}, Dst: "noMatch"},
+		{Name: "proceedOnMiss", Src: []string{"checkCorrectness"}, Dst: "advancing"},
 
 		{Name: "matched", Src: []string{"gotMatch"}, Dst: "updateMask"},
 		{Name: "gameEnd", Src: []string{"gotMatch"}, Dst: "endState"}, // Allow early exit from gotMatch
 		{Name: "notMatched", Src: []string{"noMatch"}, Dst: "updateScore"},
 
 		{Name: "advance", Src: []string{"updateMask"}, Dst: "advancing"},
+		{Name: "jumped", Src: []string{"jumping"}, Dst: "evaluating"},
 
 		{Name: "advanced", Src: []string{"advancing"}, Dst: "evaluating"},
 		{Name: "scoreCalculated", Src: []string{"updateScore"}, Dst: "evaluating"},
@@ -252,7 +257,7 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 			}
 
 			// Check if the game is already won
-			if s.GotCorrectMessage() {
+			if s.GotCorrectMessage() && s.Pos >= len(s.Secret) {
 				s.Win = true
 				e.FSM.Event(ctx, "gameEnd")
 				return
@@ -278,6 +283,12 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				return
 			}
 
+			// Check for Jump (Tab) request
+			if IsTabRequested(s.CurrentChar) {
+				e.FSM.Event(ctx, "jump")
+				return
+			}
+
 			e.FSM.Event(ctx, "proceed")
 		},
 		"enter_revealingAll": func(ctx context.Context, e *fsm.Event) {
@@ -289,8 +300,8 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 			e.FSM.Event(ctx, "gameEnd")
 		},
 		"enter_processChar": func(ctx context.Context, e *fsm.Event) {
-			// Use the helper to skip revealed logic (ensures Pos is at first UNREVEALED char)
-			s.SkipRevealed()
+			// Skip ignorable chars (spaces/punc) but STOP at revealed letters
+			s.SkipIgnorable()
 
 			// Update UI to show skipped chars immediately
 			s.Textarea.SetValue(string(s.Mask))
@@ -375,7 +386,16 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				if s.IsCorrectLetter(s.CurrentChar) {
 					e.FSM.Event(ctx, "match")
 				} else if s.IsIncorrectLetter(s.CurrentChar) {
-					e.FSM.Event(ctx, "mismatch")
+					// If the character is ALREADY REVEALED, we give one chance then move on.
+					if s.Mask[s.Pos] != '_' {
+						s.RevealedCharMistakes[s.Pos] = true
+						// Logically "wrong", but we advance without scoring.
+						// This matches the "Type Through" speed flow.
+						e.FSM.Event(ctx, "proceedOnMiss")
+					} else {
+						// Hidden character error: Blocking state.
+						e.FSM.Event(ctx, "mismatch")
+					}
 				} else {
 					// Should not happen given logic, but treat as ignore?
 					// If we are at end of string?
@@ -393,8 +413,9 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 				s.Score.ScoreEvent("wordBonus")
 			}
 
-			// If the message is complete, win immediately
-			if string(s.Mask) == string(s.Secret) {
+			// If the message is complete (reached end of content), win immediately
+			// Note: We check Pos, not just Mask equality, to force typing through revealed chars.
+			if s.Pos >= len(s.Secret)-1 {
 				s.Win = true
 				s.Score.ScoreEvent("messageBonus") // Apply bonus here as it won't be applied in evaluating
 				if s.TimerEnabled {
@@ -407,9 +428,26 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 
 			e.FSM.Event(ctx, "matched")
 		},
+		"enter_jumping": func(ctx context.Context, e *fsm.Event) {
+			// Find next unrevealed character
+			for s.Pos < len(s.Secret) {
+				// We want to stop at the next '_'.
+				// But we also need to respect SkipRevealed logic for punctuation?
+				// User said "Jump to next open position".
+				// Open position means Mask == '_'.
+				if s.Mask[s.Pos] == '_' {
+					break
+				}
+				s.Pos++
+			}
+			e.FSM.Event(ctx, "jumped")
+		},
 		"enter_noMatch": func(ctx context.Context, e *fsm.Event) {
 			s.WrongLetter = true
-			s.Score.ScoreEvent("wrongLetter")
+			// Only apply penalty if the character was NOT revealed
+			if s.Pos < len(s.Mask) && s.Mask[s.Pos] == '_' {
+				s.Score.ScoreEvent("wrongLetter")
+			}
 			e.FSM.Event(ctx, "notMatched")
 		},
 		"enter_revealNextChar": func(ctx context.Context, e *fsm.Event) {
@@ -432,6 +470,8 @@ func getStateCallbacks(s *State) map[string]fsm.Callback {
 		},
 		"enter_advancing": func(ctx context.Context, e *fsm.Event) {
 			s.Pos++
+			s.SkipIgnorable()
+			s.Textarea.SetValue(string(s.Mask))
 			e.FSM.Event(ctx, "advanced")
 		},
 		"enter_updateScore": func(ctx context.Context, e *fsm.Event) {

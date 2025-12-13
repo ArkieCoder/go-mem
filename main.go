@@ -154,11 +154,21 @@ func (s *LocalState) RenderBoard() string {
 			style = style.Bold(true)
 		}
 
+		// Apply persistent mistake style
+		if g.State.RevealedCharMistakes[i] {
+			style = style.Foreground(lipgloss.Color("9")).Underline(true)
+		}
+
 		// Apply cursor style
 		if !g.State.Win && !g.State.Loss && i == pos {
 			if g.State.WrongLetter {
-				// Red Block Cursor
-				style = style.Background(lipgloss.Color("9"))
+				// If character is already revealed (visible), use Red Underline
+				if mask[i] != '_' {
+					style = style.Foreground(lipgloss.Color("9")).Underline(true)
+				} else {
+					// Red Block Cursor for hidden char
+					style = style.Background(lipgloss.Color("9"))
+				}
 			} else {
 				// Reverse video for normal cursor
 				style = style.Reverse(true)
