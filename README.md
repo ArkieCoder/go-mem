@@ -106,20 +106,7 @@ go-mem -nfw=5 examples/lorem.txt
 
 ## File Formats
 
-**go-mem** accepts plain text files. 
-
-### Multiple Cards in One File
-You can define multiple "cards" in a single file by separating them with a line containing three or more dashes (`---`).
-
-**Example `quotes.txt`:**
-```text
-To be, or not to be, that is the question.
----
-All the world's a stage,
-And all the men and women merely players.
----
-The only thing we have to fear is fear itself.
-```
+For details on file formats, creating multiple cards in a single file, and naming cards, see [CARD_FORMAT.md](CARD_FORMAT.md).
 
 ## Controls
 
